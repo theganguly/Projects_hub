@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Projects</title>
+<style>
+  :root{
+    --bg:#0F1115; --surface:#171A21; --border:#272B35;
+    --text:#E7E9EE; --muted:#8B93A3; --accent:#5B8CFF; --accent2:#7BE0C4;
+    --danger:#FF6B6B; --radius:14px;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#F7F8FA; --surface:#FFFFFF; --border:#E4E7EC;
+      --text:#181B21; --muted:#6B7280; --accent:#3B62E6; --accent2:#0E9E7A;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#F7F8FA; --surface:#FFFFFF; --border:#E4E7EC;
+    --text:#181B21; --muted:#6B7280; --accent:#3B62E6; --accent2:#0E9E7A;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:22px 24px; max-width:960px; margin:0 auto;
+  }
+  header h1{font-size:22px; font-weight:650; margin:0; letter-spacing:-.02em;}
+  header p{margin:4px 0 0; color:var(--muted); font-size:14px;}
+  .addBtn{
+    background:var(--accent); color:#fff; border:none; border-radius:10px;
+    padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .addBtn:hover{filter:brightness(1.08);}
+  main{max-width:960px; margin:0 auto; padding:0 24px 60px;}
+  #grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px;
+  }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; display:flex; flex-direction:column; gap:10px; transition:transform .15s, border-color .15s;
+  }
+  .card:hover{transform:translateY(-2px); border-color:var(--accent);}
+  .card .emoji{font-size:30px; line-height:1;}
+  .card h3{margin:0; font-size:16px; font-weight:600;}
+  .card p{margin:0; color:var(--muted); font-size:13px; line-height:1.5; flex:1;}
+  .cardRow{display:flex; gap:8px; margin-top:4px;}
+  .playBtn{
+    flex:1; background:var(--accent); color:#fff; border:none; border-radius:9px;
+    padding:9px 0; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .playBtn:hover{filter:brightness(1.08);}
+  .delBtn{
+    background:none; border:1px solid var(--border); color:var(--muted); border-radius:9px;
+    padding:9px 12px; font-size:13px; cursor:pointer;
+  }
+  .delBtn:hover{color:var(--danger); border-color:var(--danger);}
+  #empty{color:var(--muted); font-size:14px; padding:40px 0; text-align:center;}
+
+  /* Add form (inline card) */
+  #addForm{
+    display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; margin-bottom:16px; max-width:960px;
+  }
+  #addForm.open{display:block;}
+  #addForm label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;}
+  #addForm input, #addForm textarea{
+    width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:9px 10px; font-size:14px; font-family:inherit;
+  }
+  #addForm textarea{resize:vertical; min-height:50px;}
+  .formRow{display:flex; gap:10px;}
+  .formRow>div{flex:1;}
+  .formActions{display:flex; gap:8px; margin-top:14px;}
+  .saveBtn{background:var(--accent2); color:#06261D; border:none; border-radius:9px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer;}
+  .cancelBtn{background:none; border:1px solid var(--border); color:var(--muted); border-radius:9px; padding:10px 16px; font-size:13px; cursor:pointer;}
+
+  /* Runner overlay */
+  #overlay{
+    position:fixed; inset:0; background:var(--bg); z-index:50; display:none; flex-direction:column;
+  }
+  #overlay.open{display:flex;}
+  #overlayBar{
+    display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border);
+    padding-top:calc(10px + env(safe-area-inset-top,0px));
+  }
+  #overlayBar button{
+    background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer;
+  }
+  #overlayTitle{font-size:14px; font-weight:600; flex:1;}
+  #overlayFrame{flex:1; border:none; width:100%; background:#fff;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🎮 My Projects</h1>
+    <p>A launcher for games &amp; tools from my GitHub Pages.</p>
+  </div>
+  <button class="addBtn" id="openAdd">+ Add project</button>
+</header>
+
+<main>
+  <div id="addForm">
+    <div class="formRow">
+      <div><label>Name</label><input id="fName" placeholder="e.g. CodeKit"></div>
+      <div><label>Emoji (optional)</label><input id="fEmoji" placeholder="🧰" maxlength="4"></div>
+    </div>
+    <label>GitHub Pages URL</label>
+    <input id="fUrl" placeholder="https://yourname.github.io/repo-name/">
+    <label>Short description (optional)</label>
+    <textarea id="fDesc" placeholder="What this project does"></textarea>
+    <div class="formActions">
+      <button class="saveBtn" id="saveProject">Save</button>
+      <button class="cancelBtn" id="cancelAdd">Cancel</button>
+    </div>
+  </div>
+
+  <div id="grid"></div>
+  <div id="empty" style="display:none;">No projects yet — click "+ Add project" to add your first one.</div>
+</main>
+
+<div id="overlay">
+  <div id="overlayBar">
+    <button id="backBtn">← Back</button>
+    <div id="overlayTitle"></div>
+    <button id="openNewTab">Open in new tab</button>
+  </div>
+  <iframe id="overlayFrame"></iframe>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // Seed projects — edit these defaults or just use "+ Add project" in the UI.
+  var SEED = [
+    { name:"Flappy Bird", emoji:"🐦", url:"https://theganguly.github.io/flappy-bird-/",
+      desc:"Classic Flappy Bird clone." }
+  ];
+
+  var STORAGE_KEY = "projectsHub.projects";
+
+  function loadUserProjects(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function saveUserProjects(list){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }catch(e){}
+  }
+
+  var userProjects = loadUserProjects();
+  if (userProjects === null){
+    userProjects = SEED.slice();
+    saveUserProjects(userProjects);
+  }
+
+  var grid = document.getElementById('grid');
+  var emptyEl = document.getElementById('empty');
+
+  function render(){
+    grid.innerHTML = '';
+    if (!userProjects.length){
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    userProjects.forEach(function(p, idx){
+      var card = document.createElement('div');
+      card.className = 'card';
+
+      var emoji = document.createElement('div');
+      emoji.className = 'emoji';
+      emoji.textContent = p.emoji || '🕹️';
+      card.appendChild(emoji);
+
+      var h3 = document.createElement('h3');
+      h3.textContent = p.name;
+      card.appendChild(h3);
+
+      if (p.desc){
+        var pEl = document.createElement('p');
+        pEl.textContent = p.desc;
+        card.appendChild(pEl);
+      }
+
+      var row = document.createElement('div');
+      row.className = 'cardRow';
+
+      var playBtn = document.createElement('button');
+      playBtn.className = 'playBtn';
+      playBtn.textContent = 'Play';
+      playBtn.addEventListener('click', function(){ openProject(p); });
+      row.appendChild(playBtn);
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'delBtn';
+      delBtn.textContent = 'Remove';
+      delBtn.addEventListener('click', function(){
+        if (confirm('Remove "' + p.name + '" from your list?')){
+          userProjects.splice(idx, 1);
+          saveUserProjects(userProjects);
+          render();
+        }
+      });
+      row.appendChild(delBtn);
+
+      card.appendChild(row);
+      grid.appendChild(card);
+    });
+  }
+
+  // ---------- Add form ----------
+  var addForm = document.getElementById('addForm');
+  document.getElementById('openAdd').addEventListener('click', function(){
+    addForm.classList.add('open');
+    document.getElementById('fName').focus();
+  });
+  document.getElementById('cancelAdd').addEventListener('click', function(){
+    addForm.classList.remove('open');
+  });
+  document.getElementById('saveProject').addEventListener('click', function(){
+    var name = document.getElementById('fName').value.trim();
+    var url = document.getElementById('fUrl').value.trim();
+    var emoji = document.getElementById('fEmoji').value.trim();
+    var desc = document.getElementById('fDesc').value.trim();
+    if (!name || !url){ alert('Name and URL are required.'); return; }
+    if (!/^https?:\/\//i.test(url)){ alert('URL should start with http:// or https://'); return; }
+    userProjects.push({ name:name, url:url, emoji:emoji, desc:desc });
+    saveUserProjects(userProjects);
+    document.getElementById('fName').value = '';
+    document.getElementById('fUrl').value = '';
+    document.getElementById('fEmoji').value = '';
+    document.getElementById('fDesc').value = '';
+    addForm.classList.remove('open');
+    render();
+  });
+
+  // ---------- Runner overlay ----------
+  var overlay = document.getElementById('overlay');
+  var frame = document.getElementById('overlayFrame');
+  var titleEl = document.getElementById('overlayTitle');
+  var newTabBtn = document.getElementById('openNewTab');
+  var currentUrl = '';
+
+  function openProject(p){
+    titleEl.textContent = p.name;
+    currentUrl = p.url;
+    frame.src = p.url;
+    overlay.classList.add('open');
+  }
+  document.getElementById('backBtn').addEventListener('click', function(){
+    overlay.classList.remove('open');
+    frame.src = 'about:blank';
+  });
+  newTabBtn.addEventListener('click', function(){
+    if (currentUrl) window.open(currentUrl, '_blank', 'noopener');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
