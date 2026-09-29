@@ -61,6 +61,21 @@
     padding:9px 12px; font-size:13px; cursor:pointer;
   }
   .delBtn:hover{color:var(--danger); border-color:var(--danger);}
+  .card{position:relative;}
+  .card.dragging{opacity:.6; border-color:var(--accent2); transform:scale(1.03); z-index:5;}
+  .handle{position:absolute; top:10px; right:12px; cursor:grab; color:var(--muted); font-size:20px; line-height:1; padding:6px; touch-action:none; user-select:none;}
+  .handle:active{cursor:grabbing;}
+  .hdrBtns{display:flex; gap:8px;}
+  .pubBtn{background:none; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 14px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  #ghModal{position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; display:none; align-items:center; justify-content:center; padding:20px;}
+  #ghModal.open{display:flex;}
+  #ghBox{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:22px; width:100%; max-width:400px; max-height:90%; overflow:auto;}
+  #ghBox h2{margin:0 0 6px; font-size:17px;}
+  #ghBox p{margin:0 0 8px; color:var(--muted); font-size:12px; line-height:1.5;}
+  #ghBox label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;}
+  #ghBox input{width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 10px; font-size:14px;}
+  #ghStatus{font-size:12px; min-height:16px; margin-top:10px; color:var(--accent2);}
+  #ghStatus.err{color:var(--danger);}
   #empty{color:var(--muted); font-size:14px; padding:40px 0; text-align:center;}
 
   /* Add form (inline card) */
@@ -130,7 +145,7 @@
     <h1>🎮 My Projects</h1>
     <p>A launcher for games &amp; tools from my GitHub Pages.</p>
   </div>
-  <button class="addBtn" id="openAdd">+ Add project</button>
+  <div class="hdrBtns"><button class="pubBtn" id="pubBtn">⬆ Publish</button><button class="addBtn" id="openAdd">+ Add project</button></div>
 </header>
 
 <main>
@@ -166,6 +181,24 @@
   </div>
 </div>
 
+<div id="ghModal">
+  <div id="ghBox">
+    <h2>Publish to code</h2>
+    <p>Writes the current project list &amp; order into this file's code on GitHub, so everyone who opens the page sees it. Needs a fine-grained token with <b>Contents: read &amp; write</b> on this repo. Stored only in this browser.</p>
+    <label>GitHub username</label><input id="ghOwner">
+    <label>Repository</label><input id="ghRepo">
+    <label>File path</label><input id="ghPath" value="index.html">
+    <label>Branch (optional)</label><input id="ghBranch" placeholder="default branch">
+    <label>Token</label><input id="ghToken" type="password" autocomplete="off">
+    <div id="ghStatus"></div>
+    <div class="formActions">
+      <button class="saveBtn" id="ghGo">Publish</button>
+      <button class="cancelBtn" id="ghCopy">Copy code</button>
+      <button class="cancelBtn" id="ghClose">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="overlay">
   <div id="overlayBar">
     <button id="backBtn">← Back</button>
@@ -180,24 +213,20 @@
   "use strict";
 
   // Seed projects — add entries here, or just use "+ Add project" in the UI.
-  var SEED = [];
+  /*SEED_START*/var SEED = [];/*SEED_END*/
 
-  var STORAGE_KEY = "projectsHub.projects";
-
-  function loadUserProjects(){
-    try{
-      var raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    }catch(e){ return null; }
-  }
+  var STORAGE_KEY = "projectsHub.draft";
+  var SEED_JSON = JSON.stringify(SEED);
+  var dirty = false;
+  var userProjects = SEED.slice();
+  try{
+    var d = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (d && d.base === SEED_JSON){ userProjects = d.list; dirty = JSON.stringify(d.list) !== SEED_JSON; }
+  }catch(e){}
   function saveUserProjects(list){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }catch(e){}
-  }
-
-  var userProjects = loadUserProjects();
-  if (userProjects === null){
-    userProjects = SEED.slice();
-    saveUserProjects(userProjects);
+    dirty = JSON.stringify(list) !== SEED_JSON;
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({base:SEED_JSON, list:list})); }catch(e){}
+    if (typeof updatePub === 'function') updatePub();
   }
 
   // ---------- Password-protected removal ----------
@@ -266,6 +295,11 @@
     userProjects.forEach(function(p, idx){
       var card = document.createElement('div');
       card.className = 'card';
+      card._p = p;
+      var handle = document.createElement('div');
+      handle.className = 'handle'; handle.textContent = '⠿'; handle.title = 'Drag to reorder';
+      attachDrag(handle, card);
+      card.appendChild(handle);
 
       var emoji = document.createElement('div');
       emoji.className = 'emoji';
@@ -356,8 +390,83 @@
     if (currentUrl) window.open(currentUrl, '_blank', 'noopener');
   });
 
-  render();
-})();
-</script>
-</body>
-</html>
+  // ---------- Drag to reorder ----------
+  function attachDrag(h, card){
+    h.addEventListener('pointerdown', function(e){
+      e.preventDefault();
+      try{ h.setPointerCapture(e.pointerId); }catch(_){}
+      card.classList.add('dragging');
+      function move(ev){
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        var t = el && el.closest ? el.closest('.card') : null;
+        if (!t || t === card || t.parentNode !== grid) return;
+        var kids = Array.prototype.slice.call(grid.children);
+        if (kids.indexOf(card) < kids.indexOf(t)) grid.insertBefore(card, t.nextSibling);
+        else grid.insertBefore(card, t);
+      }
+      function up(){
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', up);
+        h.removeEventListener('pointercancel', up);
+        card.classList.remove('dragging');
+        userProjects = Array.prototype.map.call(grid.children, function(c){ return c._p; });
+        saveUserProjects(userProjects);
+      }
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', up);
+      h.addEventListener('pointercancel', up);
+    });
+  }
+
+  // ---------- Publish to code (GitHub API) ----------
+  var GH_KEY = "projectsHub.gh";
+  var pubBtn = document.getElementById('pubBtn');
+  var ghModal = document.getElementById('ghModal');
+  var ghStatus = document.getElementById('ghStatus');
+  var ids = {owner:'ghOwner', repo:'ghRepo', path:'ghPath', branch:'ghBranch', token:'ghToken'};
+  function $(id){ return document.getElementById(id); }
+  function updatePub(){ pubBtn.textContent = dirty ? '⬆ Publish changes •' : '⬆ Publish'; }
+  function status(msg, err){ ghStatus.textContent = msg; ghStatus.className = err ? 'err' : ''; }
+  function codeLine(){
+    return 'var SEED = ' + JSON.stringify(userProjects, null, 2).replace(/</g, '\\u003c') + ';';
+  }
+  function replaceSeed(src){
+    return src.replace(/\/\*SEED_START\*\/[\s\S]*?\/\*SEED_END\*\//, function(){
+      return '/*SEED_START*/' + codeLine() + '/*SEED_END*/';
+    });
+  }
+  function b64enc(t){ return btoa(unescape(encodeURIComponent(t))); }
+  function b64dec(t){ return decodeURIComponent(escape(atob(t.replace(/\s/g, '')))); }
+
+  pubBtn.addEventListener('click', function(){
+    var saved = {};
+    try{ saved = JSON.parse(localStorage.getItem(GH_KEY) || '{}'); }catch(e){}
+    if (!saved.owner && /\.github\.io$/.test(location.hostname)){
+      saved.owner = location.hostname.split('.')[0];
+      saved.repo = location.pathname.split('/')[1] || saved.owner + '.github.io';
+    }
+    Object.keys(ids).forEach(function(k){ if (saved[k]) $(ids[k]).value = saved[k]; });
+    status('');
+    ghModal.classList.add('open');
+  });
+  $('ghClose').addEventListener('click', function(){ ghModal.classList.remove('open'); });
+  $('ghCopy').addEventListener('click', function(){
+    var t = codeLine();
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(
+      function(){ status('Copied. Replace the SEED line in your file (between the SEED_START/SEED_END markers).'); },
+      function(){ prompt('Copy this code:', t); });
+  });
+  $('ghGo').addEventListener('click', async function(){
+    var c = {};
+    Object.keys(ids).forEach(function(k){ c[k] = $(ids[k]).value.trim(); });
+    if (!c.owner || !c.repo || !c.path || !c.token){ status('Fill username, repo, path and token.', true); return; }
+    try{ localStorage.setItem(GH_KEY, JSON.stringify(c)); }catch(e){}
+    var url = 'https://api.github.com/repos/' + c.owner + '/' + c.repo + '/contents/' + c.path.split('/').map(encodeURIComponent).join('/');
+    var hdr = {Authorization:'Bearer ' + c.token, Accept:'application/vnd.github+json'};
+    try{
+      status('Reading file…');
+      var r = await fetch(url + (c.branch ? '?ref=' + encodeURIComponent(c.branch) : ''), {headers:hdr});
+      if (!r.ok) throw new Error('Read failed (' + r.status + '). Check repo, path and token.');
+      var f = await r.json();
+      var src = b64dec(f.content);
+      if (!/\/\*SEED_START\*\//.test(src)) throw new Error
